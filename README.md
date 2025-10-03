@@ -6,7 +6,7 @@
 
 |                                  |                                 |
 | -------------------------------- | ------------------------------- |
-| __Maximální počet bodů__         | 10 bodů                         |
+| __Maximální počet bodů__         | 13 bodů                         |
 | __Způsob komunikace s aplikací__ | Parametry předané při spuštění  |
 | __Způsob testování aplikace__    | Na základě standardního výstupu |
 
