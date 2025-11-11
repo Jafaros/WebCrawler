@@ -31,12 +31,19 @@ public class App {
 			 * Zde zpracujte dalí parametry - maxDepth a debugLevel
 			 */
 
+			int maxDepth = Integer.parseInt(args[1]);
+
 			ParserCallback callBack = new ParserCallback(visitedURIs, foundURIs);
 			ParserDelegator parser = new ParserDelegator();
 
 			while (!foundURIs.isEmpty()) {
 				URIinfo URIinfo = foundURIs.removeFirst();
 				callBack.depth = URIinfo.depth;
+
+				if (args[1] != null) {
+					callBack.maxDepth = maxDepth;
+				}
+
 				callBack.pageURI = uri = URIinfo.uri;
 				System.err.println("Analyzing " + uri);
 				try {

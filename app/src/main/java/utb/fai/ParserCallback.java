@@ -1,12 +1,15 @@
 package utb.fai;
 
 import java.net.URI;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.Map;
 
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.html.HTML;
 import javax.swing.text.html.HTMLEditorKit;
+
 
 /**
  * Třída ParserCallback je používána parserem DocumentParser,
@@ -49,19 +52,36 @@ class ParserCallback extends HTMLEditorKit.ParserCallback {
     /** pokud debugLevel>1, budeme vypisovat debugovací hlášky na std. error */
     int debugLevel = 0;
 
+    HashMap<String, Integer> wordCounter;
+    boolean inScript = false;
+    boolean inStyle = false;
+
     ParserCallback(HashSet<URI> visitedURIs, LinkedList<URIinfo> foundURIs) {
         this.foundURIs = foundURIs;
         this.visitedURIs = visitedURIs;
+        wordCounter = new HashMap<>();
     }
 
     /**
      * metoda handleSimpleTag se volá např. u značky <FRAME>
      */
-    public void handleSimpleTag(HTML.Tag t, MutableAttributeSet a, int pos) {
+    public void handleSimpleTag(HTML.Tag t, MutableAttributeSet a, int pos) { 
         handleStartTag(t, a, pos);
     }
 
     public void handleStartTag(HTML.Tag t, MutableAttributeSet a, int pos) {
+        if (t == HTML.Tag.SCRIPT) {
+            inScript = true;
+            return;
+        } else if (t == HTML.Tag.STYLE) {
+            inStyle = true;
+            return;
+        }
+
+        if (t == HTML.Tag.IMG) {
+            return;
+        }
+
         URI uri;
         String href = null;
         if (debugLevel > 1)
@@ -87,6 +107,15 @@ class ParserCallback extends HTMLEditorKit.ParserCallback {
 
     }
 
+    @Override
+    public void handleEndTag(HTML.Tag t, int pos) {
+        if (t == HTML.Tag.SCRIPT) {
+            inScript = false;
+        } else if (t == HTML.Tag.STYLE) {
+            inStyle = false;
+        }
+    }
+
     /******************************************************************
      * V metodě handleText bude probíhat veškerá činnost, související se
      * zjiováním četnosti slov v textovém obsahu HTML stránek.
@@ -100,9 +129,24 @@ class ParserCallback extends HTMLEditorKit.ParserCallback {
      * HTML stránkách.
      *******************************************************************/
     public void handleText(char[] data, int pos) {
+        if (inScript || inStyle) {
+            return;
+        }
+
         System.out.println("handleText: " + String.valueOf(data) + ", pos=" + pos);
-        /**
-         * ...tady bude vaše implementace...
-         */
+        
+        String text = String.valueOf(data);
+        String[] words = text.split("\\W+");
+
+        for (String word : words) {
+            if (!word.isEmpty()) {
+                word = word.toLowerCase();
+                wordCounter.put(word, wordCounter.getOrDefault(word, 0) + 1);
+            }
+        }
+
+        /*for (Map.Entry<String, Integer> entry : wordCounter.entrySet()) {
+            System.out.println(entry.getKey() + ";" + entry.getValue());
+        }*/
     }
 }
