@@ -3,23 +3,34 @@
  */
 package utb.fai;
 
-import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.InputStreamReader;
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedList;
-
-import javax.swing.text.html.parser.ParserDelegator;
+import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class App {
 
 	public static void main(String[] args) {
-		LinkedList<URIinfo> foundURIs = new LinkedList<URIinfo>();
-		HashSet<URI> visitedURIs = new HashSet<URI>();
-		URI uri;
+		ConcurrentLinkedDeque<URIinfo> foundURIs = new ConcurrentLinkedDeque<>();
+		Set<URI> visitedURIs = Collections.synchronizedSet(new HashSet<>());
+		
+        int maxDepth = Integer.parseInt(args[1]);
+		int debugLevel = 0;
+
+        if (args.length >= 3) {
+            try {
+                debugLevel = Integer.parseInt(args[2]);
+            } catch (NumberFormatException ex) {}
+        }
+
 		try {
-			uri = new URI(args[0] + "/");
+			URI uri = new URI(args[0] + "/");
 			foundURIs.add(new URIinfo(uri, 0));
 			visitedURIs.add(uri);
 
@@ -27,35 +38,42 @@ public class App {
 				System.err.println("Missing parameter - start URL");
 				return;
 			}
-			/**
-			 * Zde zpracujte dalí parametry - maxDepth a debugLevel
-			 */
 
-			int maxDepth = Integer.parseInt(args[1]);
+			// Vytvoření thread poolu v závislosti na počtu jader/vláken procesoru počítače
+			int nThreads = Math.max(2, Runtime.getRuntime().availableProcessors());
+            ExecutorService executor = Executors.newFixedThreadPool(nThreads);
 
-			ParserCallback callBack = new ParserCallback(visitedURIs, foundURIs);
-			ParserDelegator parser = new ParserDelegator();
+			while (true) {
+				URIinfo uriInfo = foundURIs.pollFirst();
 
-			while (!foundURIs.isEmpty()) {
-				URIinfo URIinfo = foundURIs.removeFirst();
-				callBack.depth = URIinfo.depth;
+				if (uriInfo == null) {
+					if (((ThreadPoolExecutor) executor).getActiveCount() == 0) break;
 
-				if (args[1] != null) {
-					callBack.maxDepth = maxDepth;
+					try { 
+						Thread.sleep(100); 
+					} catch (InterruptedException ex) {}
+
+					continue;
 				}
 
-				callBack.pageURI = uri = URIinfo.uri;
-				System.err.println("Analyzing " + uri);
-				try {
-					BufferedReader reader = new BufferedReader(new InputStreamReader(uri.toURL().openStream()));
-					parser.parse(reader, callBack, true);
-					reader.close();
-				} catch (FileNotFoundException e) {
-					System.err.println("Error loading page - does it exist?");
-				}
+				if (uriInfo.depth > maxDepth) continue;
+
+				// Vlastní task používající Jsoup
+				executor.submit(new CrawlerTask(uriInfo, foundURIs, visitedURIs, maxDepth, debugLevel));
 			}
-		} catch (Exception e) {
-			System.err.println("Zachycena neoetøená výjimka, konèíme...");
+
+        executor.shutdown();
+
+        try {
+            executor.awaitTermination(10, TimeUnit.MINUTES);
+        } catch (InterruptedException e) {
+			e.printStackTrace();
+        }
+
+        // Print 20 nejčetnějších slov
+        WordCounter.getInstance().printTopWords(20);
+		} catch (URISyntaxException e) {
+			System.err.println("Zachycena neošetřená výjimka, končíme...");
 			e.printStackTrace();
 		}
 	}
